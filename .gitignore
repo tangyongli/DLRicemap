@@ -3,6 +3,9 @@
 *.h5
 *.jpg
 *.pyc
+*.ipynb
+*.xml
+
 # 忽略 Visual Studio Code 相关文件夹
 .vscode/
 dataset/
