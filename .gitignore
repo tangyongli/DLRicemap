@@ -1,0 +1,12 @@
+*.tif
+*.npy
+*.h5
+*.jpg
+*.pyc
+# 忽略 Visual Studio Code 相关文件夹
+.vscode/
+dataset/
+log/
+run/
+semantic_segmentation/model/__pycache__
+semantic_segmentation/__pycache__
