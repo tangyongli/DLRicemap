@@ -41,8 +41,8 @@ def conbatchrelu_block(
     x = layers.BatchNormalization()(x)
     if use_refu==True:
         x = layers.ReLU()(x)
-    else:
-        x = x
+    # else:
+    #     x = x
     return x
 
 def channel_attention(inputs,geoinputs,ratio=8,geo=True):
@@ -51,29 +51,40 @@ def channel_attention(inputs,geoinputs,ratio=8,geo=True):
     # avg_pool= layers.TimeDistributed(layers.GlobalAveragePooling2D())(input_feature)
     avg_pool= layers.GlobalAveragePooling2D()(inputs)
     max_pool = layers.GlobalMaxPooling2D()(inputs)
-    if geo==True:
-        avggeo_pool = layers.concatenate([avg_pool, geoinputs],axis=-1)
-        maxgeo_pool = layers.concatenate([max_pool, geoinputs], axis=-1)
+    print('11111111111111111111111111111',avg_pool.shape,geoinputs.shape)
+    if geo:
+        # avggeo_pool = layers.concatenate([avg_pool, geoinputs],axis=-1)
+        # print('geotruetruetruetruetrue' ,avggeo_pool.shape)
+        # maxgeo_pool = layers.concatenate([max_pool, geoinputs], axis=-1)
+        avggeo_pool = Concatenate(axis=-1)([avg_pool, geoinputs])
+        maxgeo_pool = Concatenate(axis=-1)([max_pool, geoinputs])
         geotimechannel=geoinputs.shape[-1]
+        # avggeo_pool = avg_pool
+        # maxgeo_pool=max_pool
+        # geotimechannel=0
     else:
         avggeo_pool = avg_pool
         maxgeo_pool=max_pool
         geotimechannel=0
 
-    avg_pool=Reshape((1,1,avggeo_pool.shape[-1]))(avggeo_pool)
-    channel =  avggeo_pool.shape[-1]  # 获取通道维度
+    # avg_pool=Reshape((1,1,avggeo_pool.shape[-1]))(avggeo_pool)
+    # max_pool = Reshape((1,1,maxgeo_pool.shape[-1]))(maxgeo_pool)
+    avg_pool = Lambda(lambda x: K.reshape(x, (K.shape(x)[0], 1, 1, K.shape(x)[-1])))(avggeo_pool)
+    max_pool= Lambda(lambda x: K.reshape(x, (K.shape(x)[0], 1, 1, K.shape(x)[-1])))(maxgeo_pool)
+    channel =  avg_pool.shape[-1]  # 获取通道维度
     shared_layer_one = Dense(channel // ratio, activation='relu', kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')
     shared_layer_two = Dense(channel-geotimechannel, kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')
-    avg_pool=shared_layer_one(avg_pool)
-    avg_pool=shared_layer_two(avg_pool)
-    print('avg2', avg_pool.shape) 
-    
-    max_pool = Reshape((1,1,maxgeo_pool.shape[-1]))(maxgeo_pool)
-    max_pool = shared_layer_one(max_pool)
-    max_pool = shared_layer_two(max_pool)
-    print('max', max_pool.shape) 
+    avg_pool2=shared_layer_one(avg_pool)
+    avg_pool2=shared_layer_two(avg_pool)
+    print('avg2', avg_pool2.shape) 
+    print( max_pool.shape)
+ 
+    max_pool2 = shared_layer_one(max_pool)
+    max_pool2= shared_layer_two(max_pool)
+    print('max', max_pool2.shape) 
+   
     # 通道注意力的输出
-    cbam_feature = Add()([avg_pool,max_pool])
+    cbam_feature = Add()([avg_pool2,max_pool2])
     cbam_feature = Activation('sigmoid')(cbam_feature)
     return multiply([inputs, cbam_feature])
 def spatial_attention(input_feature):
@@ -88,7 +99,7 @@ def spatial_attention(input_feature):
     print("spation",cbam_feature.shape) #(None, 7,7 1)
     return multiply([input_feature, cbam_feature])
 #%%
-def ResBlock(inputs,channel,geoinputs,two=False,attentionbefore=False,attentionafter=False): # 11 7 7 11
+def ResBlock(inputs,channel,geoinputs,two=False,geodateattention=False,attentionbefore=False,attentionafter=False): # 11 7 7 11
     '''
     block_input,
     num_filters,
@@ -101,7 +112,7 @@ def ResBlock(inputs,channel,geoinputs,two=False,attentionbefore=False,attentiona
     if two==False:
         x=conbatchrelu_block(inputs,channel,3,1,1,False,False)
         if attentionbefore==True:
-            x=channel_attention(x,geoinputs,ratio=8,geo=True)
+            x=channel_attention(x,geoinputs,ratio=8,geo=geodateattention)
             x=spatial_attention(x)
         if inputs.shape[-1]==x.shape[-1]:
             x = layers.Add()([inputs, x])  # 
@@ -113,7 +124,7 @@ def ResBlock(inputs,channel,geoinputs,two=False,attentionbefore=False,attentiona
         x=conbatchrelu_block(inputs,channel,3,1,1,False,True)
         x=conbatchrelu_block(x,channel,3,1,1,False,False)
         if attentionbefore==True:
-            x=channel_attention(x,geoinputs,ratio=8,geo=True)
+            x=channel_attention(x,geoinputs,ratio=8,geo=geodateattention)
             x=spatial_attention(x)
         if inputs.shape[-1]==x.shape[-1]:
             x = layers.Add()([inputs, x])  # 
@@ -123,7 +134,7 @@ def ResBlock(inputs,channel,geoinputs,two=False,attentionbefore=False,attentiona
             x = layers.Add()([inputs, x])
     x=layers.ReLU()(x)
     if attentionafter==True:
-        x=channel_attention(x,geoinputs,ratio=8,geo=True)
+        x=channel_attention(x,geoinputs,ratio=8,geo=geodateattention)
         x=spatial_attention(x)
     return x
 #%%

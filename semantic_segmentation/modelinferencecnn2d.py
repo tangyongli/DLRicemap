@@ -12,13 +12,14 @@ from keras import backend as K
 from cfgs import *
                
 #%%
-modelpath=saveModelPath
-img_dir=r'D:\ricemodify\dataset\quxian'
+modelpath=saveModelPath#r"D:\ricemodify\run\train\patchsize11\model\DualCnn2dGeotimeCbrm565656.h5"#
+img_dir=r'D:\ricemodify\dataset\origin_img\quxian'
 img_list = [file for file in os.listdir(img_dir) if file.endswith('.tif')]
 model=tf.keras.models.load_model(modelpath,custom_objects={"K": K})
 model.summary()
 mean=np.load(saveMeanPath)
-std=np.load(saveModelPath)
+std=np.load(saveStdPath)
+print(saveMeanPath)
 print(mean.shape,std.shape)
 def load_tiles(folder): # 返回的shape统一是高度、宽度、6monthsx11channels
     imgtwo=[]
@@ -31,7 +32,7 @@ def load_tiles(folder): # 返回的shape统一是高度、宽度、6monthsx11cha
     # imgcomposite=np.zeros((h,w,c*2),dtype=np.float32)
     # print(imgcomposite.shape)
     for f in file:
-            img1=rio.open(f).read()
+            img1=rio.open(f).read()[...,0:4000,0:4000]
             img1=np.transpose(img1,(1,2,0))
             imgtwo.append(img1)  
     imgtwo=np.array(imgtwo)
@@ -59,7 +60,7 @@ def load_tiles(folder): # 返回的shape统一是高度、宽度、6monthsx11cha
 img,trans=load_tiles(img_dir)      
 #%%
 start=time.time()
-def predict(model,img,batchsize,patchsize,height,width): # height,width is the no padding image
+def predict(model,img,batchsize,patchsize,startrow,startcol,endrow,endcol): # height,width is the no padding image
     # height,width=img.shape[1]-10,img.shape[2]-10
     results=[] #np.zeros(width,height)
     resultsnot=[]
@@ -67,8 +68,8 @@ def predict(model,img,batchsize,patchsize,height,width): # height,width is the n
     patchcount=0
     margin=patchsize//2
     # img=load_img(img_dir)
-    for row in range(margin+2500,height+margin,1):
-        for col in range(margin+2500,width+margin,1):
+    for row in range(margin+startrow,endrow+margin,1):
+        for col in range(margin+startcol,endcol+margin,1):
             patch=img[:,row-margin:row-margin+patchsize,col-margin:col-margin+patchsize,:]
             # print('patch',patch.shape)
             patches.append(patch) #AttributeError: 'numpy.ndarray' object has no attribute 'append'
@@ -102,9 +103,8 @@ def predict(model,img,batchsize,patchsize,height,width): # height,width is the n
                 resultsnot.append(np.argmax(pred, axis=1))
                         
     return np.array(results),np.array(resultsnot)
-
-height,width=3500,3500# 结束预测的图像高度和宽度
-prebatch,pred1=predict(model,img,256*4,11,height,width)
+startrow,startcol,endrow,endcol=2500,2500,3500,3500
+prebatch,pred1=predict(model,img,256*4,11,startrow,startcol,endrow,endcol)
 end=time.time()
 #%%
 prebatch.shape
@@ -119,10 +119,12 @@ prebatch=prebatch.reshape(shapes1,-1)
 # np.save(f"cnn2d7x7x121-3003to4003batch.npy",prebatch)
 pred1=pred1.reshape(shapes2,-1)
 finalpred=np.append(prebatch,pred1,axis=0)
-np.save(f"dualimagescnn2d745_2500to4500.npy",finalpred)
+savepath=os.path.join(predictarray,f'{saveVersion}_{startrow}x{startcol}-{endrow}x{endcol}.npy')#os.path.join(predictarray,saveVersion)
+
 #%%
 # 最终预测得到的array
-finalpred=finalpred.reshape((1000,1000))
+finalpred=finalpred.reshape((endrow-startrow,endcol-startcol))
+np.save(savepath,finalpred)
 # %%
 plt.show()
 plt.imshow(finalpred)
@@ -130,13 +132,13 @@ plt.imshow(finalpred)
 def convertarraytolabeltif(orgintif,labelarray,outpath):
         tif=rio.open(orgintif)
         transform=rio.open(orgintif).transform
-        width=1000 #labelarray.shape[1]
-        height=1000#labelarray.shape[0]
+        height=endrow-startrow #labelarray.shape[1]
+        width=endcol-startcol#labelarray.shape[0]
         rowbottom=height
-        colleft=2500
-        rowtop=2500
-        colright=3500
-        rowbottom=3500
+        colleft=startcol+patchsize//2
+        rowtop=startrow+patchsize//2
+        colright=endcol+patchsize//2
+        rowbottom=endrow+patchsize//2
         left, bottom= transform * (colleft, rowbottom)
         right,top= transform*(colright, rowtop)
         dst_transform, dst_width, dst_height = calculate_default_transform(
@@ -153,12 +155,12 @@ def convertarraytolabeltif(orgintif,labelarray,outpath):
         with rio.open(outpath, 'w', driver='GTiff', width=width, height=height, count=1, dtype=np.uint8, 
                         crs=tif.crs, transform=dst_transform) as dst:
             dst.write(labelarray, 1)
-orgintif=r'D:\ricemodify\dataset\quxian\quxian_2023sentinel2_maxevi601-901composite15bandswithdoylatlon.tif'
+
 # orgintif=r"D:\RICEFIELD\dataset\download\quxian\2022quxianlabel0rice1othercropveurban2water_othercropveurban3-8monthmeanstd.tif"
-outpath=r'D:\ricemodify\run\predict\3dcnn\yuechi\patchsize33'
-os.makedirs(outpath,exist_ok=True)
-# outpath=os.path.join(outpath,rf"predpadding{modelFlag_}_{time_}x{inputHeight_}x{inputWidth_}x{inputChannel_}_3000to{height}_3000to{width}.tif")
+savetifpath=os.path.join(predicttif,f'{saveVersion}_{startrow}x{startcol}-{endrow}x{endcol}.tif')
 modelFlag_='cnn2d7x7x121'
-outpath=os.path.join(outpath,f"singleimages2500to3500.tif")
-convertarraytolabeltif(orgintif,finalpred,outpath)
+
+# finalpred=np.load(r'D:\ricemodify\run\dualimagescnn2d745_2500to4500.npy')
+# finalpred=finalpred.reshape((1000,1000))
+convertarraytolabeltif(orgintif,finalpred,savetifpath)
 # %%

@@ -14,8 +14,14 @@ from keras.utils import to_categorical
 from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
 # from utils.bestparams import *
 from cfgs import *
+
 #%%
-channel=12
+d=99
+c=99
+def get_c_value():
+    c = 99
+    return c
+
 def reset_random_seeds():
    os.environ['PYTHONHASHSEED']=str(999)
    random.seed(999)
@@ -33,12 +39,8 @@ df['imgpatch']=[None] * len(df)
 df['landcover'].value_counts()
 linshui=df[df['area'] == 1]
 quxian=df[df['area'] == 2]
-print(quxian)
-#%%
-d=99
-c=rf'D:\ricemodify\dataset\datasplit\xmean{d}'
-
-
+yuechi=df[df['area']==3]
+print(yuechi)
 #%%
 def load_tiles(folder): # 返回的shape统一是高度、宽度、6monthsx11channels
     imgtwo=[]
@@ -83,18 +85,23 @@ def patchfrompoint(df,img,trans,patchsize):
             # print('df',df["imgpatch"])
     return df,imgpatch.shape
 #%%
-def datamerge(df,imgquxianpath,imglinshuipath,patchsize,normalize=True):
+def datamerge(df,imgyuechipath,imgquxianpath,imglinshuipath,patchsize,normalize=True):
     # dfyuechi,dflinshui,dfquxian=datasplit(samplepath)
     imgquxian,transquxian=load_tiles(imgquxianpath)
     imglinshui,translinshui=load_tiles(imglinshuipath)
+    imgyuechi,transyuechi=load_tiles(imgyuechipath)
+    patchyuechi,_=patchfrompoint(yuechi,imgyuechi,transyuechi,patchsize)
+    patchyuechi=patchyuechi[patchyuechi['imgpatch'].apply(lambda x: x is not None)]
     patchlinshui,_=patchfrompoint(linshui,imglinshui,translinshui,patchsize)
     patchlinshui=patchlinshui[patchlinshui['imgpatch'].apply(lambda x: x is not None)]
     patchquxian,_=patchfrompoint(quxian,imgquxian,transquxian,patchsize)
     patchquxian=patchquxian[patchquxian['imgpatch'].apply(lambda x: x is not None)]
-    df=pd.concat([patchlinshui, patchquxian], ignore_index=True)
+    df=pd.concat([patchyuechi,patchlinshui, patchquxian], ignore_index=True)
     df= df[df['imgpatch'].apply(lambda x: x is not None)]
     return  df#patchyuechi,patchlinshui,patchquxian
-patchdf=datamerge(df,imgquxianpath,imglinshuipath,11)
+patchdf=datamerge(df,imgyuechipath,imgquxianpath,imglinshuipath,11)
+#%%
+patchdf.shape
 #%%
 def samplenormin(patchdf,normalization=True):
     if normalization==True:
@@ -109,15 +116,19 @@ def samplenormin(patchdf,normalization=True):
         xtrain=(xtrain-mean)/std
         # np.save(rf'D:\ricemodify\dataset\datasplit\xmean{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}.npy',mean)
         # np.save(rf'D:\ricemodify\dataset\datasplit\xstd{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}.npy',std)
-        np.save(saveMeanPath,mean)
-        np.save(saveStdPath,std)
+        # np.save(saveMeanPath,mean)
+        # np.save(saveStdPath,std)
         xtrain=xtrain.reshape(xtrain.shape[0],xtrain.shape[1],xtrain.shape[2],2,12)
         xtrain=np.transpose(xtrain,(0,3,1,2,4))
         xtrain=np.concatenate([xtrain,xtimegeo],axis=-1)
+        patchdf['landcover'].replace(2,1,inplace=True)
+        print(patchdf['landcover'].unique())
         ytrain=np.array(patchdf['landcover'].tolist())
         ytrain= tf.convert_to_tensor(ytrain, dtype=tf.float32)
         ytrain=to_categorical(ytrain, num_classes=2)
         print(xtrain.shape,ytrain.shape)
+        np.save(rf'D:\ricemodify\dataset\datasplit\x{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}.npy',xtrain)
+        np.save(rf'D:\ricemodify\dataset\datasplit\y{ytrain.shape[0]}.npy',ytrain)
         # 检查是否存在None值
         # contains_none = np.any(xtrain == None)
         # if contains_none:
@@ -140,12 +151,14 @@ def samplenormin(patchdf,normalization=True):
     return xtrain,ytrain#,xval,yval,xtest,ytestr
 
 xtrain,ytrain=samplenormin(patchdf,normalization=True)
+#%%
 xtrain[np.isnan(xtrain)]=0
 # xval1[np.isnan(xval1)]=0
 # xtest1[np.isnan(xtest1)]=0
 # print(xtrain1.shape,ytrain.shape)
 ratio = np.sum(xtrain == 0) / xtrain.size #6376*49*121
 print(f"值为-1的比率: {ratio:.2%}") #值为-1的比率: 1.61%'
+#%%
 xtrainbands=xtrain[...,0:12]
 time1=xtrain[...,12:13]/365
 time2=2*(time1-0.5)
