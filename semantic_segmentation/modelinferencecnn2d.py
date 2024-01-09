@@ -103,7 +103,7 @@ def predict(model,img,batchsize,patchsize,startrow,startcol,endrow,endcol): # he
                 resultsnot.append(np.argmax(pred, axis=1))
                         
     return np.array(results),np.array(resultsnot)
-startrow,startcol,endrow,endcol=2500,2500,3500,3500
+# startrow,startcol,endrow,endcol=2500,2500,3500,3500
 prebatch,pred1=predict(model,img,256*4,11,startrow,startcol,endrow,endcol)
 end=time.time()
 #%%

@@ -15,7 +15,7 @@ def singlebranch(inputs,geoinputs,channelratio,cnn1d=False):
     # # 参数量很大
     x=layers.concatenate([x1,x2],axis=-1) 
     x=layers.MaxPooling2D((2,2))(x)
-    x3=ResBlock(x,channel=256,geoinputs=geoinputs,two=False,geodateattention=True,attentionbefore=False,attentionafter=True)
+    x3=ResBlock(x,channel=128,geoinputs=geoinputs,two=True,geodateattention=True,attentionbefore=False,attentionafter=True)
     x=layers.concatenate([x,x3],axis=-1) 
     x=layers.MaxPooling2D((2,2))(x)
     print('xxxxxxxxxxxxxxxxxxxxxxxxxxx',x.shape)
@@ -90,14 +90,14 @@ def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,dropout=0.2,L2=0):
     output_layer=Dense(2,kernel_regularizer=reg,activation='softmax')(x) #,activation='sigmoid'
     return Model(inputs,output_layer)
 #%%
-from sklearn.model_selection import train_test_split
-from cfgs import *
-inputshape=(2,11,11,16)
-numFilters=[16,32,64,128,256,512]
-geoinput=(3,)
-model=DualCnn2dGeotimeCbrm(inputshape,channelratio=4,dual=True,dropout=0,L2=0.002) # ratio越小参数越大
-model.compile(optimizer=optimizer ,loss= cross_loss, metrics=metrics)
-print(model.summary())
+# from sklearn.model_selection import train_test_split
+# from cfgs import *
+# inputshape=(2,11,11,16)
+# numFilters=[16,32,64,128,256,512]
+# geoinput=(3,)
+# model=DualCnn2dGeotimeCbrm(inputshape,channelratio=4,dual=True,dropout=0,L2=0.002) # ratio越小参数越大
+# model.compile(optimizer=optimizer ,loss= cross_loss, metrics=metrics)
+# print(model.summary())
 # model=DualCnn2dGeotimeCbrm(inputshape,4,0,0.002,True) # ratio越小参数越大
 # print(model)
 # print(model.summary())

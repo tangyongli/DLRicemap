@@ -29,11 +29,12 @@ metrics=['accuracy',
 modeltag='Cnn2dGeotimeCbrm56564random2'
 dual=1
 geotime=4
-resnetfilters=['64mp','128mp','256one','128cnn1d','cat64128_128256']
+resnetfilters=['64mp','128mp','128two','128cnn1d','cat64128_128128']
 resnetfiltersname='x'.join(map(str, resnetfilters))
 print('resnetfiltersname',resnetfiltersname)
 
-saveVersion =f'sample{sample}dual{dual}resnetattention{resnetfiltersname}_geodate{geotime}'
+# saveVersion =f'sample{sample}imggeneraterotatflip_dual{dual}resnetattention{resnetfiltersname}_geodate{geotime}'
+saveVersion =f'sample{sample}classrotatflip_dual{dual}resnetattention{resnetfiltersname}_geodate{geotime}'
 plateauPatience=5
 workEnv= 'run'
 checkpointDir = os.path.join(workEnv, f'train/patchsize{patchsize}/model') #/train/model is wrong
