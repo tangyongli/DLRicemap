@@ -1,47 +1,80 @@
 
 from semantic_segmentation.model.module import *
+from keras.layers import Input, SeparableConv2D, DepthwiseConv2D
+from cfgs import *
 # from semantic_segmentation.dataset.datagenerate import get_c_value
 # print(get_c_value())
 def singlebranch(inputs,geoinputs,channelratio,cnn1d=False):
    
-    x=layers.Conv2D(32,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(inputs)   
-    x=layers.Conv2D(32,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(inputs)  
+    x=layers.Conv2D(16,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(inputs)   
+    x=layers.Conv2D(16,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)  
+    print('none1',x.shape)
     x = keras.layers.BatchNormalization()(x)
-    x= keras.layers.ReLU()(x)
-    x1=ResBlock(x,channel=64,geoinputs=geoinputs,two=True,geodateattention=True,attentionbefore=False,attentionafter=True)
-    print('xxxxxxxxxxxxxxxxxxxxxxxxxxxxx',x.shape)
-    x1=layers.MaxPooling2D((2,2))(x1)
-    x2=ResBlock(x1,channel=128,geoinputs=geoinputs,two=True,geodateattention=True,attentionbefore=False,attentionafter=True)
-    # # 参数量很大
-    x=layers.concatenate([x1,x2],axis=-1) 
-    x=layers.MaxPooling2D((2,2))(x)
-    x3=ResBlock(x,channel=128,geoinputs=geoinputs,two=True,geodateattention=True,attentionbefore=False,attentionafter=True)
-    x=layers.concatenate([x,x3],axis=-1) 
-    x=layers.MaxPooling2D((2,2))(x)
-    print('xxxxxxxxxxxxxxxxxxxxxxxxxxx',x.shape)
+    x1= keras.layers.ReLU()(x)
+    print('none2',x.shape)
+    x=deepwise2d(x1,k=6,geoinputs=geoinputs,ratio=2,geo=False) 
+    x=layers.concatenate([inputs,x],axis=-1) 
+  
+    x2=layers.Conv2D(32,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)  
+    # x2=layers.MaxPooling2D((2,2))(x)
+    x=deepwise2d(x2,k=6,geoinputs=geoinputs,ratio=4,geo=False)
+    x=layers.concatenate([inputs,x],axis=-1) 
+    x3=layers.Conv2D(64,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)  
+    # x3=layers.MaxPooling2D((2,2))(x)
+    x=deepwise2d(x3,k=6,geoinputs=geoinputs,ratio=8,geo=False)
+    x=layers.concatenate([inputs,x],axis=-1) 
+    x4=layers.Conv2D(96,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
+    # x4=layers.MaxPooling2D((2,2))(x)
+    x=deepwise2d(x4,k=6,geoinputs=geoinputs,ratio=12,geo=False)
+    # x5=deepwise2d(x,k=6,geoinputs=geoinputs,ratio=12,geo=True)
+     
+    x=layers.concatenate([inputs,x],axis=-1) 
+    # x=layers.Conv2D(128,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
+    # x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
+    # x=deepwise2d(x,filter1=128,k=2)
+    
+    # x1=ResBlock(x,channel=64,geoinputs=geoinputs,two=True,geodateattention=True,attentionbefore=True,attentionafter=False)
+    # print('xxxxxxxxxxxxxxxxxxxxxxxxxxxxx',x.shape)
+    # x1=layers.MaxPooling2D((2,2))(x1)
+    # x2=ResBlock(x1,channel=128,geoinputs=geoinputs,two=True,geodateattention=True,attentionbefore=True,attentionafter=False)
+    # # # 参数量很大
+    # x=layers.concatenate([x1,x2],axis=-1) 
+    # x=layers.MaxPooling2D((2,2))(x)
+    # x3=ResBlock(x,channel=128,geoinputs=geoinputs,two=True,geodateattention=True,attentionbefore=False,attentionafter=True)
+    # x=layers.concatenate([x,x3],axis=-1) 
+    # x=layers.MaxPooling2D((2,2))(x)
+    # print('xxxxxxxxxxxxxxxxxxxxxxxxxxx',x.shape) #(None, 1, 1, 320)
     if cnn1d==True:
+        # x=Reshape((x.shape[1],x.shape[3],x.shape[2]))(x)
+        
         x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
     # x=layers.concatenate([inputs,x],axis=-1) 
     return x
-def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,dropout=0.2,L2=0):
+def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,bandswithindex=True,dropout=0.2,L2=0):
     '''
     inputshape: (2,patchsize,patchsize,15). last three channels are doy,lat,lon
     channelratio:the ratio of channel atttention dense layer after max and average pooling
     '''
+    if bandswithindex:
+        bands=12
+    else:
+        bands=9
+
     if L2>0:
         reg = tf.keras.regularizers.l2(l=L2)
     else: 
         reg = tf.keras.regularizers.l2(l=0.0)
     inputs= keras.Input(shape=inputshape) #(None, 2, 11, 11, 15)
-    inputtime1bands=layers.Lambda(lambda x: x[...,0:1,:,:,0:12])(inputs)
+    inputtime1bands=layers.Lambda(lambda x: x[...,0:1,:,:,0:bands])(inputs)
+    print('inputs',  inputs.shape)
     print('inputtime1bands',inputtime1bands.shape,inputtime1bands.shape[0]) #(None, 1, 11, 11, 12) None
    
 
-    inputtime1bands=Reshape((11,11,12))(inputtime1bands) #(None,  11, 11, 12)
-    inputtime2bands=layers.Lambda(lambda x: x[...,0:1,:,:,0:12])(inputs)
-    inputtime2bands=Reshape((11,11,12))(inputtime2bands) #(None, 11, 11, 12)
-    inputtime1geotimeinputs= layers.Lambda(lambda x: x[...,0:1,5:6,5:6,12:16])(inputs) # (1,1,3)
-    inputtime2geotimeinputs= layers.Lambda(lambda x: x[...,1:2,5:6,5:6,12:16])(inputs) # (1,1,3)
+    inputtime1bands=Reshape((inputheight,inputwidth,bands))(inputtime1bands) #(None,  11, 11, 12)
+    inputtime2bands=layers.Lambda(lambda x: x[...,0:1,:,:,0:bands])(inputs)
+    inputtime2bands=Reshape((inputheight,inputwidth,bands))(inputtime2bands) #(None, 11, 11, 12)
+    inputtime1geotimeinputs= layers.Lambda(lambda x: x[...,0:1,inputheight//2:inputheight//2+1,inputwidth//2:inputwidth//2+1,bands:bands+geotimebands])(inputs) # (1,1,3)
+    inputtime2geotimeinputs= layers.Lambda(lambda x: x[...,1:2,inputheight//2:inputheight//2+1,inputwidth//2:inputwidth//2+1,bands:bands+geotimebands])(inputs) # (1,1,3)
     '''
     it's wrong. 
     ①TypeError: Unable to serialize KerasTensor(type_spec=TensorSpec(shape=(None, 2, 11, 11, 16), dtype=tf.float32, name='input_1'), name='input_1', description="created by layer 'input_1'") to JSON. Unrecognized type <class 'keras.engine.keras_tensor.KerasTensor'>.
@@ -63,11 +96,14 @@ def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,dropout=0.2,L2=0):
    
     print(  inputtime2geotimeinputs.shape)
     time1cnn=singlebranch(inputtime1bands,inputtime1geotimeinputs,channelratio,cnn1d=True)
-
+   
     time2cnn=singlebranch(inputtime2bands,inputtime2geotimeinputs,channelratio,cnn1d=True)
     x=layers.concatenate([time1cnn,time2cnn],axis=-1) #add()?
+    # x=layers.Conv2D(128,(3,3),strides=(2,2),padding='same',dilation_rate=(1, 1),kernel_initializer='he_normal', use_bias=False)(x)
+    # x=Reshape((x.shape[1],x.shape[3],x.shape[2]))(x)
     x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
-    x=layers.Conv2D(128,(3,3),strides=(2,2),padding='same',dilation_rate=(1, 1),kernel_initializer='he_normal', use_bias=False)(x) 
+    x=layers.Conv2D(256,(3,3),strides=(2,2),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
+    # x=layers.Conv2D(256,(3,3),strides=(2,2),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
     # x = layers.MaxPooling2D(strides=2, padding="same")(x)
     # x = keras.layers.BatchNormalization()(x)
     # x= keras.layers.ReLU()(x)
@@ -79,40 +115,91 @@ def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,dropout=0.2,L2=0):
     x= keras.layers.ReLU()(x)
     # x=channel_attention(x,x,channelratio,False)
     # x=spatial_attention(x)
-    # x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
+   
+    # x=layers.Conv1D(64,(3,),strides=(2,),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
     # x=layers.AveragePooling2D(pool_size=3)(x)
-    # x=layers.GlobalAveragePooling2D()(x)
+    x=layers.GlobalAveragePooling2D()(x)
     x=Flatten()(x)
     # x=Dense(512,kernel_regularizer=reg)(x)
     x=Dense(256,kernel_regularizer=reg)(x)
     x= layers.Dropout(dropout)(x)
     print('x',x.shape)
     output_layer=Dense(2,kernel_regularizer=reg,activation='softmax')(x) #,activation='sigmoid'
+    # output_layer=Dense(1, activation='sigmoid')(x)
+
     return Model(inputs,output_layer)
+inputshape=(2,11,11,13)
+numFilters=[16,32,64,128,256,512]
+geoinput=(3,)
+model=DualCnn2dGeotimeCbrm(inputshape,channelratio=4,dual=True,bandswithindex=False,dropout=0,L2=0.002) # ratio越小参数越大
+model.compile(optimizer=optimizer ,loss= cross_loss, metrics=metrics)
+print(model.summary())
 #%%
-# from sklearn.model_selection import train_test_split
-# from cfgs import *
-# inputshape=(2,11,11,16)
-# numFilters=[16,32,64,128,256,512]
-# geoinput=(3,)
-# model=DualCnn2dGeotimeCbrm(inputshape,channelratio=4,dual=True,dropout=0,L2=0.002) # ratio越小参数越大
-# model.compile(optimizer=optimizer ,loss= cross_loss, metrics=metrics)
-# print(model.summary())
+
+# def cnn1d(x):
+#     x= keras.Input(shape=x)
+#     kernel_initializer = tf.keras.initializers.Ones()
+#     # y= layers.Conv1D(1,
+#     #                         3,
+#     #                         padding='same',
+#     #                         dilation_rate=1,
+#     #                         strides=1, kernel_initializer=kernel_initializer
+#     #                         )(x)
+#     y = keras.layers.Conv1D(32, (1,),padding='valid', activation='relu')(x)
+#     return Model(x,y)
+# x3=(1,1,15)
+# x=(10,1)
+# x1=(10,5)
+# # model=cnn1d(x)#.summary()
+# # model1=cnn1d(x1)#.summary()
+# model3=cnn1d(x3)#.summary()
+# print(model3.summary())
+# # 打印每一层的权重
+# for layer in model3.layers:
+#     print(f"\nLayer: {layer.name}")
+#     weights = layer.get_weights()
+#     if weights:
+#         for w in weights:
+#             print(w.shape)
+#             print(w)
+#     else:
+#         print("No weights for this layer")
+# x = tf.random.normal((1,10,5))
+# print(x)
+# output = model3.predict(x)
+# print("\nModel output:")
+# print(output.shape) #(1, 8, 32)
+# x = tf.constant([1, 2, 3, 4, 5], dtype=np.float32)
+# x = tf.reshape(x, (1,1, 5))
+# kernel_initializer = tf.keras.initializers.Ones()
+
+# conv_with_stride = layers.Conv1D(2,
+#                         3,
+#                         padding='valid',
+#                         dilation_rate=1,
+#                         strides=2, 
+#                         kernel_initializer=kernel_initializer)
+# y = conv_with_stride(x)
+# print(y)
+
+
+
 # model=DualCnn2dGeotimeCbrm(inputshape,4,0,0.002,True) # ratio越小参数越大
 # print(model)
 # print(model.summary())
-# shape_x = (500, 2,11, 11, 16)
-# shape_y = (500, 1)
-
+# shape_x = (2, 2,11, 11, 16)
+# shape_y = (2, 1)
 # # Create random data for x (assuming you want random values)
 # x = np.random.rand(*shape_x)
-
 # # Create random integers for y (0 or 1)
 # y = np.random.randint(2, size=shape_y)
 # y= tf.convert_to_tensor(y, dtype=tf.float32)
 # y=to_categorical(y, num_classes=2)
 # model.compile(optimizer=optimizer ,loss= cross_loss, metrics=metrics)
-# # print(model.summary())
+# history=model.fit(x, y,epochs=10,
+# verbose=2,callbacks=callback_,shuffle=False)
+
+# print(model.summary())
 # # model=tf.keras.models.load_model(saveModelPath,custom_objects={"K": K})
 # start=time.time()
 # # callback_= [
@@ -135,5 +222,4 @@ def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,dropout=0.2,L2=0):
 # # validation_data=(xval, yval),不调用callbacks，可以fit
 # # callback可以保存csv 精度变化，但不能保存模型和训练和损失曲线
 
-# history=model.fit(xtrain, ytrain,epochs=10,validation_data=(xval, yval),
-# batch_size= 16,verbose=2,callbacks=callback_,shuffle=False)
+

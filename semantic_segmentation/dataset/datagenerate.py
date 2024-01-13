@@ -13,7 +13,7 @@ import json
 from keras.utils import to_categorical
 from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
 # from utils.bestparams import *
-from cfgs import *
+from dataset.cfgs import *
 
 #%%
 d=99
@@ -28,19 +28,24 @@ def reset_random_seeds():
    np.random.seed(999)
    tf.random.set_seed(999)
 reset_random_seeds()
+samplepath=r"D:\ricemodify\dataset\riceyuan1andricemy0_yuechiquxianlinshuisamplewithgridid.csv"#"D:\ricemodify\dataset\riceyuanandricemy_yuechiquxianlinshui3671_4648samplewithgridid.csv"
 df=pd.read_csv(samplepath)
-df=df[df['area']!=0]
+# df=df[df['area']!=0] #'D:\ricemodify\dataset\yuechiquxianlinshui12000samplewithgridid_areasamplebalance4000.csv'
 # df['B2'].replace(2,1,inplace=True)
 # df['landcover'].value_counts()
 df['lon'] = df['.geo'].apply(lambda geo_str: json.loads(geo_str)['coordinates'][0])
 df['lat'] = df['.geo'].apply(lambda geo_str: json.loads(geo_str)['coordinates'][1])
 pd.set_option('display.float_format', lambda x: '%.15f' % x)
 df['imgpatch']=[None] * len(df)
-df['landcover'].value_counts()
+
+
+# df['landcover'].replace(2,1,inplace=True)
 linshui=df[df['area'] == 1]
 quxian=df[df['area'] == 2]
-yuechi=df[df['area']==3]
-print(yuechi)
+yuechi=df[df['area']==0]
+df['landcover'].value_counts()
+df.to_csv(r'D:\ricemodify\dataset\riceyuan1andricemy0_yuechiquxianlinshuisamplewithgridid.csv', index=False)
+# df.to_csv(r'D:\ricemodify\dataset\riceyuanandricemy_yuechiquxianlinshui3671_4648samplewithgrididlonlat.csv', index=False)
 #%%
 def load_tiles(folder): # 返回的shape统一是高度、宽度、6monthsx11channels
     imgtwo=[]
@@ -83,23 +88,23 @@ def patchfrompoint(df,img,trans,patchsize):
             # imgpatch[np.isnan(imgpatch)] = -1
         df.at[index,"imgpatch"]=imgpatch # 不能使用loc
             # print('df',df["imgpatch"])
-    return df,imgpatch.shape
+    return df
 #%%
 def datamerge(df,imgyuechipath,imgquxianpath,imglinshuipath,patchsize,normalize=True):
     # dfyuechi,dflinshui,dfquxian=datasplit(samplepath)
     imgquxian,transquxian=load_tiles(imgquxianpath)
     imglinshui,translinshui=load_tiles(imglinshuipath)
     imgyuechi,transyuechi=load_tiles(imgyuechipath)
-    patchyuechi,_=patchfrompoint(yuechi,imgyuechi,transyuechi,patchsize)
+    patchyuechi=patchfrompoint(yuechi,imgyuechi,transyuechi,patchsize)
     patchyuechi=patchyuechi[patchyuechi['imgpatch'].apply(lambda x: x is not None)]
-    patchlinshui,_=patchfrompoint(linshui,imglinshui,translinshui,patchsize)
+    patchlinshui=patchfrompoint(linshui,imglinshui,translinshui,patchsize)
     patchlinshui=patchlinshui[patchlinshui['imgpatch'].apply(lambda x: x is not None)]
-    patchquxian,_=patchfrompoint(quxian,imgquxian,transquxian,patchsize)
+    patchquxian=patchfrompoint(quxian,imgquxian,transquxian,patchsize)
     patchquxian=patchquxian[patchquxian['imgpatch'].apply(lambda x: x is not None)]
     df=pd.concat([patchyuechi,patchlinshui, patchquxian], ignore_index=True)
     df= df[df['imgpatch'].apply(lambda x: x is not None)]
     return  df#patchyuechi,patchlinshui,patchquxian
-patchdf=datamerge(df,imgyuechipath,imgquxianpath,imglinshuipath,11)
+patchdf=datamerge(df,imgyuechipath,imgquxianpath,imglinshuipath,33)
 #%%
 patchdf.shape
 #%%
@@ -114,8 +119,8 @@ def samplenormin(patchdf,normalization=True):
        
         std=np.nanstd(xtrain,axis=(0,1,2))
         xtrain=(xtrain-mean)/std
-        # np.save(rf'D:\ricemodify\dataset\datasplit\xmean{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}.npy',mean)
-        # np.save(rf'D:\ricemodify\dataset\datasplit\xstd{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}.npy',std)
+        np.save(rf'D:\ricemodify\dataset\datasplit\xmean{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}.npy',mean)
+        np.save(rf'D:\ricemodify\dataset\datasplit\xstd{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}.npy',std)
         # np.save(saveMeanPath,mean)
         # np.save(saveStdPath,std)
         xtrain=xtrain.reshape(xtrain.shape[0],xtrain.shape[1],xtrain.shape[2],2,12)
@@ -127,8 +132,8 @@ def samplenormin(patchdf,normalization=True):
         ytrain= tf.convert_to_tensor(ytrain, dtype=tf.float32)
         ytrain=to_categorical(ytrain, num_classes=2)
         print(xtrain.shape,ytrain.shape)
-        np.save(rf'D:\ricemodify\dataset\datasplit\x{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}.npy',xtrain)
-        np.save(rf'D:\ricemodify\dataset\datasplit\y{ytrain.shape[0]}.npy',ytrain)
+        # np.save(rf'D:\ricemodify\dataset\datasplit\x{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}meanstd.npy',xtrain)
+        # np.save(rf'D:\ricemodify\dataset\datasplit\y{ytrain.shape[0]}meanstd.npy',ytrain)
         # 检查是否存在None值
         # contains_none = np.any(xtrain == None)
         # if contains_none:
@@ -141,8 +146,8 @@ def samplenormin(patchdf,normalization=True):
         ytrain= tf.convert_to_tensor(ytrain, dtype=tf.float32)
         ytrain=to_categorical(ytrain, num_classes=2)
         print(xtrain.shape,ytrain.shape)
-        np.save(rf'D:\ricemodify\dataset\datasplit\x{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}.npy',xtrain)
-        np.save(rf'D:\ricemodify\dataset\datasplit\y{ytrain.shape[0]}.npy',ytrain)
+        np.save(rf'D:\ricemodify\dataset\datasplit\xnomeanstd{xtrain.shape[0]}x{xtrain.shape[1]}x{xtrain.shape[2]}x{xtrain.shape[3]}x{xtrain.shape[4]}.npy',xtrain)
+        np.save(rf'D:\ricemodify\dataset\datasplit\ynomeanstd{ytrain.shape[0]}.npy',ytrain)
         # np.save(r'D:\ricemodify\dataset\datasplit\xvalylq2x11x11x15.npy',xval)
         # np.save(r'D:\ricemodify\dataset\datasplit\yvalylq2x11x11x15.npy',yval)
         # np.save(r'D:\ricemodify\dataset\datasplit\xtestylq2x11x11x15.npy',xtest)
@@ -150,7 +155,8 @@ def samplenormin(patchdf,normalization=True):
 
     return xtrain,ytrain#,xval,yval,xtest,ytestr
 
-xtrain,ytrain=samplenormin(patchdf,normalization=True)
+xtrain,ytrain=samplenormin(patchdf,normalization=False)
+print(xtrain.shape,ytrain.shape)
 #%%
 xtrain[np.isnan(xtrain)]=0
 # xval1[np.isnan(xval1)]=0

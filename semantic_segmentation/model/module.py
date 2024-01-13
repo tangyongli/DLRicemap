@@ -14,8 +14,9 @@ from keras.models import Model
 from keras.layers import GlobalAveragePooling2D,Dense
 from tensorflow.keras import layers
 from keras.utils import to_categorical
-from tensorflow.keras.layers import Input, Reshape, LayerNormalization, multiply,Dense,Activation,Add,Flatten,Lambda ,Concatenate, Conv1D, Conv2D
+from tensorflow.keras.layers import Input, Reshape, LayerNormalization, multiply,Dense,Activation,Add,Flatten,Lambda ,Concatenate, Conv1D, Conv2D, Activation
 from keras import backend as K
+from keras.layers import Input, SeparableConv2D, Conv2D,DepthwiseConv2D
 import math
 import time
 import os
@@ -44,14 +45,32 @@ def conbatchrelu_block(
     # else:
     #     x = x
     return x
+def deepwise2d(inputs,k,geoinputs,ratio=8,geo=True):
+    x1=layers.Conv2D(inputs.shape[-1]*k,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(inputs) 
+    x1=layers.BatchNormalization()(x1)
+    x1= layers.ReLU(max_value=6)(x1)
+    x=DepthwiseConv2D(3,padding='same',activation='relu')(x1)
+    x=DepthwiseConv2D(3,padding='same',activation='relu')(x)
+    x=layers.Conv2D(inputs.shape[-1],(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
+    # x= layers.ReLU6()(x)
+   
+    x=Add()([inputs,x])
+    x=channel_attention(x,geoinputs,ratio=ratio,geo=True)
+    x=spatial_attention(x)
 
+    # x=layers.concatenate([inputs,x],axis=-1) 
+    return x
+inputs=keras.Input((11,11,64))
+# outputs=deepwise2d(inputs,k=6)
+# model=keras.Model(inputs=inputs,outputs=outputs)
+# model.summary()
 def channel_attention(inputs,geoinputs,ratio=8,geo=True):
     
     # 通道维度上的平均池化
     # avg_pool= layers.TimeDistributed(layers.GlobalAveragePooling2D())(input_feature)
     avg_pool= layers.GlobalAveragePooling2D()(inputs)
     max_pool = layers.GlobalMaxPooling2D()(inputs)
-    print('11111111111111111111111111111',avg_pool.shape,geoinputs.shape)
+    # print('11111111111111111111111111111',avg_pool.shape,geoinputs.shape)
     if geo:
         # avggeo_pool = layers.concatenate([avg_pool, geoinputs],axis=-1)
         # print('geotruetruetruetruetrue' ,avggeo_pool.shape)
@@ -76,12 +95,12 @@ def channel_attention(inputs,geoinputs,ratio=8,geo=True):
     shared_layer_two = Dense(channel-geotimechannel, kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')
     avg_pool2=shared_layer_one(avg_pool)
     avg_pool2=shared_layer_two(avg_pool)
-    print('avg2', avg_pool2.shape) 
-    print( max_pool.shape)
+    # print('avg2', avg_pool2.shape) 
+    # print( max_pool.shape)
  
     max_pool2 = shared_layer_one(max_pool)
     max_pool2= shared_layer_two(max_pool)
-    print('max', max_pool2.shape) 
+    # print('max', max_pool2.shape) 
    
     # 通道注意力的输出
     cbam_feature = Add()([avg_pool2,max_pool2])
@@ -96,7 +115,7 @@ def spatial_attention(input_feature):
     concat = Concatenate(axis=-1)([avg_pool, max_pool]) #(None, 256, 256, 1) (None, 256, 256, 2)
 
     cbam_feature = Conv2D(filters=1, kernel_size=kernel_size, strides=1, padding='same', activation='sigmoid', kernel_initializer='he_normal', use_bias=False)(concat)
-    print("spation",cbam_feature.shape) #(None, 7,7 1)
+    # print("spation",cbam_feature.shape) #(None, 7,7 1)
     return multiply([input_feature, cbam_feature])
 #%%
 def ResBlock(inputs,channel,geoinputs,two=False,geodateattention=False,attentionbefore=False,attentionafter=False): # 11 7 7 11
