@@ -18,10 +18,10 @@ predictjpg=r'D:\ricemodify\run\predict\quxian\patchsize11\jpg'
 os.makedirs(predictarray,exist_ok=True)
 os.makedirs(predicttif,exist_ok=True)
 os.makedirs(predictjpg,exist_ok=True)
-
-modelpath=saveModelPath#r"D:\ricemodify\run\train\patchsize11\model\sample6114_imggeneraterotatflip_dual1dwise33twice_16326496noattentionafterconcat.h5"#"D:\ricemodify\run\train\patchsize11\model\sample6114_imggeneraterotatflip_dual1dwise33twice_16326496noattentionafterconcat.h5"#saveModelPath#r"D:\ricemodify\run\train\patchsize33\model\sample12473imggeneraterotatflip_dual1dwise35twice_16326496geoattentionafter.h5"#saveModelPath #r"D:\ricemodify\run\train\patchsize11\model\sample12474imggeneraterotatflip_dual1resnetattention64mpx128mpx128twox128cnn1dxcat64128_128128_geodate4.h5"
+inputchannel=14
+modelpath=r"D:\ricemodify\run\train\patchsize11\model\s1sample10915input11x11x9_imggeneraterotatflip_dual1dwise_lastattention.h5"#saveModelPath#r"D:\ricemodify\run\train\patchsize11\model\sample6114_imggeneraterotatflip_dual1dwise33twice_16326496noattentionafterconcat.h5"#"D:\ricemodify\run\train\patchsize11\model\sample6114_imggeneraterotatflip_dual1dwise33twice_16326496noattentionafterconcat.h5"#saveModelPath#r"D:\ricemodify\run\train\patchsize33\model\sample12473imggeneraterotatflip_dual1dwise35twice_16326496geoattentionafter.h5"#saveModelPath #r"D:\ricemodify\run\train\patchsize11\model\sample12474imggeneraterotatflip_dual1resnetattention64mpx128mpx128twox128cnn1dxcat64128_128128_geodate4.h5"
 print(modelpath)
-img_dir=r'D:\ricemodify\dataset\withcloud\quxian'
+img_dir=r'D:\ricemodify\dataset\s1s2medianmaxmincloudmask\quxian' #D:\ricemodify\dataset\origin_img\quxian'
 def metric_func( y_pred, y_true):
         y_pred = tf.where(y_pred < 0.5, tf.zeros_like(y_pred, dtype=tf.float32),tf.ones_like(y_pred, dtype=tf.float32))
         acc = tf.reduce_mean(1 - tf.abs(y_true - y_pred))
@@ -30,8 +30,10 @@ img_list = [file for file in os.listdir(img_dir) if file.endswith('.tif')]
 model=tf.keras.models.load_model(modelpath,custom_objects={"K": K,'inputheight':inputheight,'inputwidth':inputwidth,'geotimebands':geotimebands})
 model.summary()
 # saveMeanPath,saveStdPath=r'D:\ricemodify\dataset\datasplit\xnomeanx11x11x24.npy',r'D:\ricemodify\dataset\datasplit\xricestd12473x11x11x24.npy'
-mean=np.load(r"D:\ricemodify\dataset\datasplit\xmyyuanmean10915x11x11x18.npy")
-std=np.load(r"D:\ricemodify\dataset\datasplit\xmyyuanstd10915x11x11x18.npy")
+# saveMeanPath,saveStdPath=r'D:\ricemodify\dataset\datasplit\xmyyuanmean6114x11x11x18.npy',r'D:\ricemodify\dataset\datasplit\xmyyuanstd6114x11x11x18.npy'
+# r"D:\ricemodify\dataset\datasplit\xmyyuanmean6114x15x15x18.npy",r"D:\ricemodify\dataset\datasplit\xmyyuanstd6114x15x15x18.npy"
+mean=np.load(rf'D:\ricemodify\dataset\s1s2medianmaxmincloudmask\xmyyuanmean10915x11x11x{inputchannel}.npy')
+std=np.load(rf'D:\ricemodify\dataset\s1s2medianmaxmincloudmask\xmyyuanstd10915x11x11x{inputchannel}.npy')
 print(saveMeanPath)
 print(mean.shape,std.shape)
 
@@ -46,33 +48,35 @@ def load_tiles(folder): # 返回的shape统一是高度、宽度、6monthsx11cha
     # imgcomposite=np.zeros((h,w,c*2),dtype=np.float32)
     # print(imgcomposite.shape)
     for f in file:
-            img1=rio.open(f).read()[...,0:5000,0:5000]
+            img1=rio.open(f).read()[...,0:5500,0:5500]
             
             img1=np.transpose(img1,(1,2,0))
             imgtwo.append(img1)  
     imgtwo=np.array(imgtwo)
     print( imgtwo.shape)  # 2,h,w,15
-    imggeo=imgtwo[...,12:15]
+    imggeo=imgtwo[...,15:17]
     print('imggeo',imggeo.shape)
-    time1bands=imgtwo[0:1,:,:,3:12]
-    time2bands=imgtwo[1:2,:,:,3:12]
-    timebothbands=np.concatenate([time1bands,time2bands],axis=-1) 
-    timebothbands=np.squeeze(timebothbands,axis=(0,)) 
-    img=(timebothbands-mean)/std
-    img= img.reshape(img.shape[0],img.shape[1],2,9)
+    time1bands=imgtwo[0:1,:,:,0:14]
+    # time2bands=imgtwo[1:2,:,:,13:15]
+    # timebothbands=np.concatenate([time1bands,time2bands],axis=-1) 
+    # timebothbands=np.squeeze(timebothbands,axis=(0,)) 
+    img=(time1bands-mean)/std
+    img= img.reshape(img.shape[1],img.shape[2],1,inputchannel)
     print(img.shape)
     img=np.transpose(img,(2,0,1,3))
     # np.save('imgquxian24bands.npy',img)
 
 
-    time1=imggeo[...,0:1]/365
-    time2=2*(time1-0.5)
-    geo1=imggeo[...,1:2]/90
-    geo2=imggeo[...,2:3]/180
-    print('geo1',geo1.shape)
-    img=np.concatenate([img,time1,time2,geo1,geo2],axis=-1)
+    # time1=imggeo[...,0:1]/365
+    # time2=2*(time1-0.5)
+    # geo1=imggeo[...,0:1]/90
+    # geo2=imggeo[...,1:2]/180
+    # print('geo1',geo1.shape)
+    # img=np.concatenate([img,geo1,geo2],axis=-1)
     # img=np.concatenate([img,imggeo],axis=-1)
     print('bothshape',img.shape)
+    if img.shape[0]==1:
+        img=np.squeeze(img,axis=0)
     return img,trans
 img,trans=load_tiles(img_dir)      
 #%%
@@ -87,7 +91,7 @@ def predict(model,img,batchsize,patchsize,startrow,startcol,endrow,endcol): # he
     # img=load_img(img_dir)
     for row in range(margin+startrow,endrow+margin,1):
         for col in range(margin+startcol,endcol+margin,1):
-            patch=img[:,row-margin:row-margin+patchsize,col-margin:col-margin+patchsize,:]
+            patch=img[row-margin:row-margin+patchsize,col-margin:col-margin+patchsize,:]
             # print('patch',patch.shape)
             patches.append(patch) #AttributeError: 'numpy.ndarray' object has no attribute 'append'
             patchcount+=1

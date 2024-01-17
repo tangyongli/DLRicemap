@@ -13,7 +13,7 @@ import json
 from keras.utils import to_categorical
 from sklearn.model_selection import StratifiedShuffleSplit, train_test_split
 # from utils.bestparams import *
-from dataset.cfgs import *
+# from dataset.cfgs import *
 
 #%%
 d=99
@@ -38,7 +38,9 @@ df['lat'] = df['.geo'].apply(lambda geo_str: json.loads(geo_str)['coordinates'][
 pd.set_option('display.float_format', lambda x: '%.15f' % x)
 df['imgpatch']=[None] * len(df)
 
-
+df=df[df['landcover']==1]
+df=df[df['landcoveryuan']==0]
+print(df.shape)
 # df['landcover'].replace(2,1,inplace=True)
 linshui=df[df['area'] == 1]
 quxian=df[df['area'] == 2]

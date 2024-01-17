@@ -45,18 +45,163 @@ def conbatchrelu_block(
     # else:
     #     x = x
     return x
-def deepwise2d(inputs,k,geoinputs,ratio=8,geo=True):
+#!/usr/bin/env python
+#coding: utf-8
+
+# import tensorflow as tf
+# import tensorflow.contrib.slim as slim
+def CoordAtt(x, reduction = 32):
+
+    def coord_act(x):
+        tmpx = tf.nn.relu6(x+3) / 6
+        x = x * tmpx
+        return x
+
+    x_shape = x.get_shape().as_list()
+    [b, h, w, c] = x_shape
+    x_h = slim.avg_pool2d(x, kernel_size = [1, w], stride = 1)
+    x_w = slim.avg_pool2d(x, kernel_size = [h, 1], stride = 1)
+    x_w = tf.transpose(x_w, [0, 2, 1, 3])
+
+    y = tf.concat([x_h, x_w], axis=1)
+    mip = max(8, c // reduction)
+    y = slim.conv2d(y, mip, (1, 1), stride=1, padding='VALID', normalizer_fn = slim.batch_norm, activation_fn=coord_act,scope='ca_conv1')
+
+    x_h, x_w = tf.split(y, num_or_size_splits=2, axis=1)
+    x_w = tf.transpose(x_w, [0, 2, 1, 3])
+    a_h = slim.conv2d(x_h, c, (1, 1), stride=1, padding='VALID', normalizer_fn = None, activation_fn=tf.nn.sigmoid,scope='ca_conv2')
+    a_w = slim.conv2d(x_w, c, (1, 1), stride=1, padding='VALID', normalizer_fn = None, activation_fn=tf.nn.sigmoid,scope='ca_conv3')
+
+    out = x * a_h * a_w
+
+
+    return out
+
+import tensorflow as tf
+from keras.layers import Lambda,Concatenate,Reshape,Conv2D,BatchNormalization,Activation,Multiply,Add
+
+def coordinate(inputs,ratio=32, name="name"):
+    def coord_act(x):
+        tmpx = tf.nn.relu6(x+3) / 6
+        x = x * tmpx
+        return x
+    H,W,C = [int(x) for x in inputs.shape[1:]]
+    # temp_dim = max(int(C//ratio),ratio)
+    mip = max(8, C//ratio)
+    H_pool = Lambda(lambda x: tf.reduce_mean(x, axis=1))(inputs)
+    W_pool = Lambda(lambda x: tf.reduce_mean(x, axis=2))(inputs)
+    x = Concatenate(axis=1)([H_pool,W_pool])
+    x = Reshape((1,W+H,C))(x)
+    x = Conv2D(mip,1)(x)
+    x = BatchNormalization()(x)
+    # x = Activation('relu')(x)
+    # x=relu(x + 3) / 6
+    x=coord_act(x)
+    x_h,x_w = Lambda(lambda x:tf.split(x,[H,W],axis=2))(x)
+    x_w = Reshape((W,1,mip))(x_w)
+
+    x_h = Conv2D(C,1,activation='sigmoid')(x_h)
+    x_w = Conv2D(C, 1, activation='sigmoid')(x_w)
+    x = Multiply()([inputs,x_h,x_w])
+    # x = Add()([inputs,x])
+    return x
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class eca_layer():
+#     """Constructs a ECA module.
+
+#     Args:
+#         channel: Number of channels of the input feature map
+#         k_size: Adaptive selection of kernel size
+#     """
+#     def __init__(self, x, k_size=3):
+#         super(eca_layer, self).__init__()
+#         self.avg_pool = layers.GlobalAveragePooling2D()
+#         self.conv = layers.Conv1D(1, 3, 1,padding='same', use_bias=False)  #128,(1,1),strides=(1,1),padding='same'
+#         self.sigmoid = tf.keras.activations.sigmoid
+#         self.x=x
+
+#     def forward(self, x):
+#         # feature descriptor on the global spatial information
+#         y = self.avg_pool(self.x)
+
+#         # Two different branches of ECA module
+#         y = self.conv(y.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+
+#         # Multi-scale information fusion
+#         y = self.sigmoid(y)
+
+#         return self.x * y.expand_as(self.x)
+
+
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import Model, layers
+import math
+ 
+ 
+def eca_block(inputs, b=1, gama=2):
+    # 输入特征图的通道数
+    in_channel = inputs.shape[-1]
+ 
+    # 根据公式计算自适应卷积核大小
+    kernel_size = int(abs((math.log(in_channel, 2) + b) / gama))
+ 
+    # 如果卷积核大小是偶数，就使用它
+    if kernel_size % 2:
+        kernel_size = kernel_size
+ 
+    # 如果卷积核大小是奇数就变成偶数
+    else:
+        kernel_size = kernel_size + 1
+ 
+    # [h,w,c]==>[None,c] 全局平均池化
+    x = layers.GlobalAveragePooling2D()(inputs)
+ 
+    # [None,c]==>[c,1]
+    x = layers.Reshape(target_shape=(in_channel, 1))(x)
+ 
+    # [c,1]==>[c,1]
+    x = layers.Conv1D(filters=1, kernel_size=kernel_size, padding='same', use_bias=False)(x)
+ 
+    # sigmoid激活
+    x = tf.nn.sigmoid(x)
+ 
+    # [c,1]==>[1,1,c]
+    x = layers.Reshape((1, 1, in_channel))(x)
+ 
+    # 结果和输入相乘
+    outputs = layers.multiply([inputs, x])
+ 
+    return outputs
+
+def deepwise2d(inputs,k,ratio=8,cbrm=False,name='one'):
     x1=layers.Conv2D(inputs.shape[-1]*k,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(inputs) 
     x1=layers.BatchNormalization()(x1)
     x1= layers.ReLU(max_value=6)(x1)
     x=DepthwiseConv2D(3,padding='same',activation='relu')(x1)
-    x=DepthwiseConv2D(3,padding='same',activation='relu')(x)
+    # x=DepthwiseConv2D(3,padding='same',activation='relu')(x)
+    # x=coordinate(x,ratio=8)
     x=layers.Conv2D(inputs.shape[-1],(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
     # x= layers.ReLU6()(x)
    
     x=Add()([inputs,x])
-    x=channel_attention(x,geoinputs,ratio=ratio,geo=True)
-    x=spatial_attention(x)
+    print('dpwise',x.shape)
+    if cbrm:
+        x=channel_attention(x,ratio=ratio,geo=False,dense=False)
+        x=spatial_attention(x)
 
     # x=layers.concatenate([inputs,x],axis=-1) 
     return x
@@ -64,35 +209,53 @@ inputs=keras.Input((11,11,64))
 # outputs=deepwise2d(inputs,k=6)
 # model=keras.Model(inputs=inputs,outputs=outputs)
 # model.summary()
-def channel_attention(inputs,geoinputs,ratio=8,geo=True):
+def channel_attention(inputs,ratio=8,geo=False,dense=False):
     
     # 通道维度上的平均池化
     # avg_pool= layers.TimeDistributed(layers.GlobalAveragePooling2D())(input_feature)
     avg_pool= layers.GlobalAveragePooling2D()(inputs)
     max_pool = layers.GlobalMaxPooling2D()(inputs)
     # print('11111111111111111111111111111',avg_pool.shape,geoinputs.shape)
-    if geo:
-        # avggeo_pool = layers.concatenate([avg_pool, geoinputs],axis=-1)
-        # print('geotruetruetruetruetrue' ,avggeo_pool.shape)
-        # maxgeo_pool = layers.concatenate([max_pool, geoinputs], axis=-1)
-        avggeo_pool = Concatenate(axis=-1)([avg_pool, geoinputs])
-        maxgeo_pool = Concatenate(axis=-1)([max_pool, geoinputs])
-        geotimechannel=geoinputs.shape[-1]
-        # avggeo_pool = avg_pool
-        # maxgeo_pool=max_pool
-        # geotimechannel=0
-    else:
-        avggeo_pool = avg_pool
-        maxgeo_pool=max_pool
-        geotimechannel=0
+    # if dense:
+    #     avggeo_pool = Concatenate(axis=-1)([avg_pool, geoinputs])
+    #     maxgeo_pool = Concatenate(axis=-1)([max_pool, geoinputs])
+    #     channel=avggeo_pool.shape[-1]
+    #     # geotimechannel=4
+    #     shared_layer_one = Dense(channel // ratio, activation='relu', kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')
+    #     shared_layer_two = Dense(channel, kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')
+    #     avg_pool1=shared_layer_one(avggeo_pool)
+    #     avg_pool1=shared_layer_two(avg_pool1)
+    #     max_pool1=shared_layer_one(maxgeo_pool)
+    #     max_pool1=shared_layer_two(max_pool1)
 
-    # avg_pool=Reshape((1,1,avggeo_pool.shape[-1]))(avggeo_pool)
-    # max_pool = Reshape((1,1,maxgeo_pool.shape[-1]))(maxgeo_pool)
-    avg_pool = Lambda(lambda x: K.reshape(x, (K.shape(x)[0], 1, 1, K.shape(x)[-1])))(avggeo_pool)
-    max_pool= Lambda(lambda x: K.reshape(x, (K.shape(x)[0], 1, 1, K.shape(x)[-1])))(maxgeo_pool)
+    #     dense=Add()([avg_pool1,max_pool1])
+    #     dense = Lambda(lambda x: K.reshape(x, (K.shape(x)[0], 1, 1, K.shape(x)[-1])))(dense)
+   
+    # if geo:
+    #     # avggeo_pool = layers.concatenate([avg_pool, geoinputs],axis=-1)
+    #     # print('geotruetruetruetruetrue' ,avggeo_pool.shape)
+    #     # maxgeo_pool = layers.concatenate([max_pool, geoinputs], axis=-1)
+    #     avggeo_pool = Concatenate(axis=-1)([avg_pool, geoinputs])
+    #     maxgeo_pool = Concatenate(axis=-1)([max_pool, geoinputs])
+    #     geotimechannel=geoinputs.shape[-1]
+    #     # avggeo_pool = avg_pool
+    #     # maxgeo_pool=max_pool
+    #     # geotimechannel=0
+    # else:
+    #     avggeo_pool = avg_pool
+    #     maxgeo_pool=max_pool
+    #     geotimechannel=0
+   
+    avg_pool=Reshape((1,1,avg_pool.shape[-1]))(avg_pool)
+    max_pool = Reshape((1,1,max_pool.shape[-1]))(max_pool)
+    # avg_pool = Lambda(lambda x: K.reshape(x, (K.shape(x)[0], 1, 1, K.shape(x)[-1])))(avggeo_pool)
+    # max_pool= Lambda(lambda x: K.reshape(x, (K.shape(x)[0], 1, 1, K.shape(x)[-1])))(maxgeo_pool)
+    # print('avg_pool',avg_pool.shape)
     channel =  avg_pool.shape[-1]  # 获取通道维度
+    # print('channel',channel)
+    # print('rtatio',ratio)
     shared_layer_one = Dense(channel // ratio, activation='relu', kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')
-    shared_layer_two = Dense(channel-geotimechannel, kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')
+    shared_layer_two = Dense(channel, kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')
     avg_pool2=shared_layer_one(avg_pool)
     avg_pool2=shared_layer_two(avg_pool)
     # print('avg2', avg_pool2.shape) 

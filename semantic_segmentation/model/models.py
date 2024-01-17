@@ -4,33 +4,35 @@ from keras.layers import Input, SeparableConv2D, DepthwiseConv2D
 from cfgs import *
 # from semantic_segmentation.dataset.datagenerate import get_c_value
 # print(get_c_value())
-def singlebranch(inputs,geoinputs,channelratio,cnn1d=False):
-   
+def singlebranch(inputs,channelratio=8,cnn1d=False,sar=False):
+  
     x=layers.Conv2D(16,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(inputs)   
     x=layers.Conv2D(16,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)  
     print('none1',x.shape)
     x = keras.layers.BatchNormalization()(x)
     x1= keras.layers.ReLU()(x)
     print('none2',x.shape)
-    x=deepwise2d(x1,k=6,geoinputs=geoinputs,ratio=2,geo=False) 
+    x=deepwise2d(x1,k=6,ratio=channelratio,cbrm=False,name='zero') 
     x=layers.concatenate([inputs,x],axis=-1) 
   
     x2=layers.Conv2D(32,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)  
     # x2=layers.MaxPooling2D((2,2))(x)
-    x=deepwise2d(x2,k=6,geoinputs=geoinputs,ratio=4,geo=False)
+    x=deepwise2d(x2,k=6,ratio=channelratio,cbrm=False,name='one')
     x=layers.concatenate([inputs,x],axis=-1) 
     x3=layers.Conv2D(64,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)  
     # x3=layers.MaxPooling2D((2,2))(x)
-    x=deepwise2d(x3,k=6,geoinputs=geoinputs,ratio=8,geo=False)
-    x=layers.concatenate([inputs,x],axis=-1) 
-    x4=layers.Conv2D(96,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
+    x4=deepwise2d(x3,k=6,ratio=channelratio,cbrm=True,name='two')
+    x4=layers.concatenate([inputs,x4],axis=-1) 
+    x=layers.Conv2D(96,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x4) 
     # x4=layers.MaxPooling2D((2,2))(x)
-    x=deepwise2d(x4,k=6,geoinputs=geoinputs,ratio=12,geo=False)
-    # x5=deepwise2d(x,k=6,geoinputs=geoinputs,ratio=12,geo=True)
-     
-    x=layers.concatenate([inputs,x],axis=-1) 
-    # x=layers.Conv2D(128,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
-    # x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
+   
+    if sar==False:
+        x=deepwise2d(x,k=6,ratio=channelratio,cbrm=True,name='three')
+        x=layers.concatenate([inputs,x],axis=-1) 
+        x=layers.Conv2D(128,(3,3),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
+        x5=deepwise2d(x,k=6,ratio=channelratio,cbrm=True,name='four')
+        x=layers.concatenate([inputs,x5],axis=-1) 
+    # x=layers.Conv2D(256,(3,3),strides=(2,2),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
     # x=deepwise2d(x,filter1=128,k=2)
     
     # x1=ResBlock(x,channel=64,geoinputs=geoinputs,two=True,geodateattention=True,attentionbefore=True,attentionafter=False)
@@ -48,15 +50,43 @@ def singlebranch(inputs,geoinputs,channelratio,cnn1d=False):
         # x=Reshape((x.shape[1],x.shape[3],x.shape[2]))(x)
         
         x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
-    # x=layers.concatenate([inputs,x],axis=-1) 
+    
+    # x=eca_block(x, b=1, gama=2)
+    # x=GlobalAveragePooling2D()(x)
+    # x=Flatten()(x)
+    
+    # 在高度和宽度轴上重复张量，变为 (None, 11, 11, 1)
+   
+    # dense1=Dense(dense1.shape[-1],activation='relu',kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')(dense1)
+    # dense2=Dense(dense2.shape[-1],activation='relu',kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')(dense2)
+    # dense3=Dense(dense3.shape[-1],activation='relu',kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')(dense3)
+    # dense4=Dense(dense4.shape[-1],activation='relu',kernel_initializer='he_normal', use_bias=True, bias_initializer='zeros')(dense4)
+    # dense=layers.concatenate([dense1,dense2,dense3,dense4],axis=-1) 
+    # dense = tf.tile(dense, [1, 11, 11, 1])
+    # x=layers.concatenate([x,dense],axis=-1)
+    # print(dense.shape)
+    # x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x) 
     return x
+# inputshape=(11,11,9)
+# geotime=(4,)
+# inputs=keras.Input(shape=inputshape)
+# geoinputs=keras.Input(shape=geotime)
+# m=singlebranch(inputs,geoinputs,channelratio=8,cnn1d=False)
+# model=Model(inputs=[inputs,geoinputs],outputs=m)
+# model.summary()
+
+
+
+
+
+
 def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,bandswithindex=True,dropout=0.2,L2=0):
     '''
     inputshape: (2,patchsize,patchsize,15). last three channels are doy,lat,lon
     channelratio:the ratio of channel atttention dense layer after max and average pooling
     '''
     if bandswithindex:
-        bands=12
+        bands=17
     else:
         bands=9
 
@@ -75,11 +105,11 @@ def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,bandswithindex=True,d
     inputtime2bands=Reshape((inputheight,inputwidth,bands))(inputtime2bands) #(None, 11, 11, 12)
     inputtime1geotimeinputs= layers.Lambda(lambda x: x[...,0:1,inputheight//2:inputheight//2+1,inputwidth//2:inputwidth//2+1,bands:bands+geotimebands])(inputs) # (1,1,3)
     inputtime2geotimeinputs= layers.Lambda(lambda x: x[...,1:2,inputheight//2:inputheight//2+1,inputwidth//2:inputwidth//2+1,bands:bands+geotimebands])(inputs) # (1,1,3)
+    
     '''
     it's wrong. 
     ①TypeError: Unable to serialize KerasTensor(type_spec=TensorSpec(shape=(None, 2, 11, 11, 16), dtype=tf.float32, name='input_1'), name='input_1', description="created by layer 'input_1'") to JSON. Unrecognized type <class 'keras.engine.keras_tensor.KerasTensor'>.
     RecursionError: maximum recursion depth exceeded while calling a Python object
-
     ②inputtime1geotimeinputs= layers.Lambda(lambda x: x[...,0:1,inputs.shape[2]//2:inputs.shape[2]//2+1,inputs.shape[3]//2:inputs.shape[3]//2+1,12:16])(inputs) # (1,1,3)
     inputtime2geotimeinputs= layers.Lambda(lambda x: x[...,1:2,inputs.shape[2]//2:inputs.shape[2]//2+1,inputs.shape[3]//2:inputs.shape[3]//2+1,12:16])(inputs) # (1,1,3)
     In this Lambda layer, inputs.shape[2], inputs.shape[3], etc., 
@@ -95,14 +125,15 @@ def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,bandswithindex=True,d
     inputtime2geotimeinputs=Reshape((channel,))(inputtime2geotimeinputs) #(3,)
    
     print(  inputtime2geotimeinputs.shape)
-    time1cnn=singlebranch(inputtime1bands,inputtime1geotimeinputs,channelratio,cnn1d=True)
+    time1cnn=singlebranch(inputtime1bands,inputtime1geotimeinputs,channelratio,geo=True,cnn1d=True)
    
-    time2cnn=singlebranch(inputtime2bands,inputtime2geotimeinputs,channelratio,cnn1d=True)
-    x=layers.concatenate([time1cnn,time2cnn],axis=-1) #add()?
-    # x=layers.Conv2D(128,(3,3),strides=(2,2),padding='same',dilation_rate=(1, 1),kernel_initializer='he_normal', use_bias=False)(x)
+    time2cnn=singlebranch(inputtime2bands,inputtime2geotimeinputs,channelratio,geo=True,cnn1d=True)
+    x=layers.concatenate([time2cnn,time1cnn],axis=-1) #add()?
+    # x=eca_block(x, b=1, gama=2)
+    x=layers.Conv2D(128,(3,3),strides=(2,2),padding='same',dilation_rate=(1, 1),kernel_initializer='he_normal', use_bias=False)(x)
     # x=Reshape((x.shape[1],x.shape[3],x.shape[2]))(x)
     x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
-    x=layers.Conv2D(256,(3,3),strides=(2,2),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
+    # x=layers.Conv2D(256,(3,3),strides=(2,2),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
     # x=layers.Conv2D(256,(3,3),strides=(2,2),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
     # x = layers.MaxPooling2D(strides=2, padding="same")(x)
     # x = keras.layers.BatchNormalization()(x)
@@ -110,17 +141,25 @@ def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,bandswithindex=True,d
     # x=channel_attention(x,,channelratio,False)
     # x=spatial_attention(x)
     # x=layers.Conv2D(256,(3,3),strides=(1,1),padding='same',dilation_rate=(2, 2),kernel_initializer='he_normal', use_bias=False)(x) 
-    x = keras.layers.BatchNormalization()(x)
+    # x = keras.layers.BatchNormalization()(x)
     # x = layers.MaxPooling2D(strides=2, padding="same")(x)
-    x= keras.layers.ReLU()(x)
-    # x=channel_attention(x,x,channelratio,False)
-    # x=spatial_attention(x)
-   
+    # x= keras.layers.ReLU()(x)
+    x=channel_attention(x,inputtime1geotimeinputs,8,False,False) #inputs,geoinputs,ratio=8,geo=True,dense=False
+    x=spatial_attention(x)
+    
     # x=layers.Conv1D(64,(3,),strides=(2,),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
     # x=layers.AveragePooling2D(pool_size=3)(x)
+    # x=eca_block(x, b=1, gama=2)
+
+
+    # x=layers.GlobalAveragePooling2D()(x)
+ 
+    # x=Dense(512,kernel_regularizer=reg)(x)
+    
     x=layers.GlobalAveragePooling2D()(x)
     x=Flatten()(x)
-    # x=Dense(512,kernel_regularizer=reg)(x)
+    x=Dense(512,kernel_regularizer=reg)(x)
+    x= layers.Dropout(dropout)(x)
     x=Dense(256,kernel_regularizer=reg)(x)
     x= layers.Dropout(dropout)(x)
     print('x',x.shape)
@@ -128,14 +167,83 @@ def DualCnn2dGeotimeCbrm(inputshape,channelratio,dual=True,bandswithindex=True,d
     # output_layer=Dense(1, activation='sigmoid')(x)
 
     return Model(inputs,output_layer)
-inputshape=(2,11,11,13)
-numFilters=[16,32,64,128,256,512]
-geoinput=(3,)
-model=DualCnn2dGeotimeCbrm(inputshape,channelratio=4,dual=True,bandswithindex=False,dropout=0,L2=0.002) # ratio越小参数越大
-model.compile(optimizer=optimizer ,loss= cross_loss, metrics=metrics)
-print(model.summary())
-#%%
+# inputshape=(2,11,11,17)
+# numFilters=[16,32,64,128,256,512]
+# geoinput=(3,)
+# model=DualCnn2dGeotimeCbrm(inputshape,channelratio=4,dual=True,bandswithindex=True,dropout=0,L2=0.002) # ratio越小参数越大
+# model.compile(optimizer=optimizer ,loss= cross_loss, metrics=metrics)
+# print(model.summary())
 
+def medianCnn2d(inputshape,channelratio,bandswithindex=False,bandposition=14,indexposition=17,sar=False,dropout=0.2,L2=0):
+    '''
+    inputshape: (2,patchsize,patchsize,15). last three channels are doy,lat,lon
+    channelratio:the ratio of channel atttention dense layer after max and average pooling
+    '''
+    if bandswithindex:
+        bands=indexposition
+    else:
+        bands=bandposition
+
+    if L2>0:
+        reg = tf.keras.regularizers.l2(l=L2)
+    else: 
+        reg = tf.keras.regularizers.l2(l=0.0)
+    inputs= keras.Input(shape=inputshape) #(None, 2, 11, 11, 15)
+    print('inputs',  inputs.shape)
+    s2=layers.Lambda(lambda x: x[...,5:bands])(inputs)
+    s2=singlebranch(s2,channelratio,cnn1d=True,sar=False)
+    if sar==True:
+        s1=layers.Lambda(lambda x: x[...,2:4])(inputs)
+        vhmin= layers.Lambda(lambda x: x[...,2:3])(inputs)
+        vhmax= layers.Lambda(lambda x: x[...,3:4])(inputs)
+        ratio = layers.Lambda(lambda x: x[1] / x[0])([vhmin, vhmax])
+        s1=layers.concatenate([s1,ratio],axis=-1)
+        s1=singlebranch(s1,channelratio,cnn1d=True,sar=False)
+        x=s1#layers.concatenate([s1,s2],axis=-1)
+    else:
+        x=s2
+    x=layers.Conv2D(128,(3,3),strides=(2,2),padding='same',dilation_rate=(1, 1),kernel_initializer='he_normal', use_bias=False)(x)
+    # x=Reshape((x.shape[1],x.shape[3],x.shape[2]))(x)
+    x=layers.Conv2D(128,(1,1),strides=(1,1),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
+    # x=layers.Conv2D(256,(3,3),strides=(2,2),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
+    # x=layers.Conv2D(256,(3,3),strides=(2,2),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
+    # x = layers.MaxPooling2D(strides=2, padding="same")(x)
+    # x = keras.layers.BatchNormalization()(x)
+    # x= keras.layers.ReLU()(x)
+    # x=channel_attention(x,,channelratio,False)
+    # x=spatial_attention(x)
+    # x=layers.Conv2D(256,(3,3),strides=(1,1),padding='same',dilation_rate=(2, 2),kernel_initializer='he_normal', use_bias=False)(x) 
+    # x = keras.layers.BatchNormalization()(x)
+    # x = layers.MaxPooling2D(strides=2, padding="same")(x)
+    # x= keras.layers.ReLU()(x)
+    x=channel_attention(x, 8,False,False) #inputs,geoinputs,ratio=8,geo=True,dense=False
+    x=spatial_attention(x)
+   
+    # x=layers.Conv1D(64,(3,),strides=(2,),padding='same',kernel_initializer='he_normal', use_bias=False)(x)
+    # x=layers.AveragePooling2D(pool_size=3)(x)
+    # x=eca_block(x, b=1, gama=2)
+
+
+    # x=layers.GlobalAveragePooling2D()(x)
+ 
+    # x=Dense(512,kernel_regularizer=reg)(x)
+    
+    x=layers.GlobalAveragePooling2D()(x)
+    x=Flatten()(x)
+    x=Dense(512,kernel_regularizer=reg)(x)
+    x= layers.Dropout(dropout)(x)
+    x=Dense(256,kernel_regularizer=reg)(x)
+    x= layers.Dropout(dropout)(x)
+    print('x',x.shape)
+    output_layer=Dense(2,kernel_regularizer=reg,activation='softmax')(x) #,activation='sigmoid'
+    # output_layer=Dense(1, activation='sigmoid')(x)
+
+    return Model(inputs,output_layer)
+#%%
+# inputshape=(11,11,14)
+# channelratio=8
+# model=medianCnn2d(inputshape,channelratio,bandswithindex=False,sar=True,dropout=0.2,L2=0)
+# model.summary()
 # def cnn1d(x):
 #     x= keras.Input(shape=x)
 #     kernel_initializer = tf.keras.initializers.Ones()
@@ -223,3 +331,5 @@ print(model.summary())
 # # callback可以保存csv 精度变化，但不能保存模型和训练和损失曲线
 
 
+
+# %%

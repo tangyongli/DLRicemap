@@ -3,8 +3,8 @@ import json
 import pandas as pd
 import numpy as np
 import rasterio as rio
-xpath=" "
-ypath=" "
+
+import cfgs
 class PatchDataLoader:
     def __init__(self, sample_path, img_yuechi_path, img_quxian_path, img_linshui_path, patch_size,time_size,band_size):
         self.df = pd.read_csv(sample_path)#.sample(1000,random_state=42)
@@ -104,8 +104,8 @@ class normalization():
         mean=np.nanmean(x,axis=(0,1,2))
         std=np.nanstd(x,axis=(0,1,2))
         xtrain=(x-mean)/std
-        np.save(rf'D:\ricemodify\dataset\withcloud\datasplit\xmyyuanstd{x.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}.npy',std)
-        np.save(rf'D:\ricemodify\dataset\withcloud\datasplit\xmyyuanmean{x.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}.npy',mean)
+        np.save(rf'D:\ricemodify\dataset\s1s2cloudmask\xmyyuanstd{x.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}.npy',std)
+        np.save(rf'D:\ricemodify\dataset\s1s2cloudmask\xmyyuanmean{x.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}.npy',mean)
 
         # xtrain=(x-mean)/std
         # xtrain[np.isnan(xtrain)]=0
@@ -125,18 +125,23 @@ class normalization():
         ratio = np.sum(x== 0) / x.size #6376*49*121
         print(f"值为0的比率: {ratio:.2%}") #值为-1的比率: 1.61%'
         return x
+if  __name__ == "__main__":
+    sample_path = r"D:\ricemodify\dataset\riceyuanandricemyboth_yuechiquxianlinshui3671_4648samplewithgridid.csv" #r"D:\ricemodify\dataset\withcloud\riceyuan1andricemy0_10915true_yuechiquxianlinshuisamplewithgridid.csv"#
+    img_yuechi_path =r"D:\ricemodify\dataset\s1s2medianmaxmincloudmask\yuechi"
+    img_quxian_path =r'D:\ricemodify\dataset\s1s2medianmaxmincloudmask\quxian'
+    img_linshui_path =r'D:\ricemodify\dataset\s1s2medianmaxmincloudmask\linshui'
 
-sample_path = r"D:\ricemodify\dataset\withcloud\riceyuan1andricemy0_10915true_yuechiquxianlinshuisamplewithgridid.csv"
-img_yuechi_path =r"D:\ricemodify\dataset\withcloud\yuechi"
-img_quxian_path =r'D:\ricemodify\dataset\withcloud\quxian'
-img_linshui_path =r'D:\ricemodify\dataset\withcloud\linshui'
-
-patch_size = 11
-data_loader = PatchDataLoader(sample_path, img_yuechi_path, img_quxian_path, img_linshui_path, patch_size,time_size=2,band_size=15)
-x,y=data_loader.generate_patches()
-# patch_df = data_loader.get_data_frame()
-print('xy',x.shape,y.shape)
-xpath=rf'D:\ricemodify\dataset\withcloud\datasplit\xyuanme_nomeanstd{x.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}x{x.shape[4]}.npy'
-ypath=rf'D:\ricemodify\dataset\withcloud\datasplit\yyuanme_nomeanstd{y.shape[0]}.npy'
+    patch_size = 11
+    data_loader = PatchDataLoader(sample_path, img_yuechi_path, img_quxian_path, img_linshui_path, patch_size,time_size=1,band_size=19)
+    x,y=data_loader.generate_patches()
+    # patch_df = data_loader.get_data_frame()
+    print('xy',x.shape,y.shape)
+    # if x.shape[0]==1:
+    #     x=np.squeeze(x,axis=0)
+    # xpath=rf'D:\ricemodify\dataset\s1s270mask\datasplit\xyuanme_nomeanstd{x.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}x{x.shape[4]}.npy'
+    # ypath=rf'D:\ricemodify\dataset\s1s270mask\datasplit\yyuanme_nomeanstd{y.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}x{x.shape[4]}.npy'
+    # cfgs.xpath=xpath
 # np.save(rf'dataset\withcloud\datasplit\xnomeanstd{x.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}x{x.shape[4]}.npy',x)
 # np.save(rf'dataset\withcloud\datasplit\ynomeanstd{y.shape[0]}.npy',y)
+    np.save(rf'D:\ricemodify\dataset\s1s2medianmaxmincloudmask\xmyyuan{x.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}x{x.shape[4]}.npy',x)
+    np.save(rf'D:\ricemodify\dataset\s1s2medianmaxmincloudmask\ymyyuan{y.shape[0]}x{x.shape[1]}x{x.shape[2]}x{x.shape[3]}x{x.shape[4]}.npy',y)
