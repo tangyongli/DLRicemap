@@ -1,2 +1,2 @@
-Pixel-wise rice field extractation in eastern Sichuan.
+smallholder paddy rice extractation using spectral-spatial fusion model in eastern Sichuan.
 
