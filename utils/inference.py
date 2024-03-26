@@ -1,12 +1,6 @@
 #%%
 import tensorflow as tf
 from keras import backend as K
-from RF_DL.model.loss import *
-
-# modelpath=r"D:\RICEMO~1\runRFDL\train\202212~1\log\TE6AA0~1\2024-0~2.H5"
-# model=tf.keras.models.load_model(modelpath,custom_objects={"K": K,'binary_weighted_cross_entropy': binary_weighted_cross_entropy})
-# model.summary()
-
 import rasterio as rio
 import numpy as np
 import os
@@ -188,28 +182,11 @@ if __name__ == "__main__":
                                 
                                 
 
-                                
-                # if modeltag=='testnew12median3max(13)train6265val4103_agu0weghtTrue_depthwisecbrmn1_cbrmlowhigh1_depthwisecorrd0__ecabfdense0_cbrmbfdense1__catTrue_drop0_l20':
-            # if modeltag[0] in ['1', '2', '3','4','5','6']:
                 saveVersion=modeltag
                 modelpath=os.path.join(modeldir,modeltag)
                 # print('modelpath is',modelpath)
                 # logpath=[os.path.join(modelpath, f) for f in os.listdir(modelpath) if f.endswith('.txt')][0]
                 modelpath=[os.path.join(modelpath, f) for f in os.listdir(modelpath) if f.endswith('.h5')][0] # [3 1 2] 3是返回                #with open(logpath, 'r') as log_file:
-                #     log_lines = log_file.readlines()
-                #     savextrainpath_value = None
-                #     for line in log_lines:
-                #         if 'saveMeanPath' in line:
-                #             saveMeanPath= line.split(':')[-1].strip()
-                #             print('Debug - saveMeanPath:', repr(saveMeanPath)) 
-                #             if saveMeanPath=='':
-                #                 saveMeanPath=rf"D:\ricemodify\datasetRF\{year}{inputtag}patchsize{patchsize}\medianq75max\mean39_2022_medianq75max(10bands3index).npy"
-                #             mean=np.load(saveMeanPath)
-                #         if 'saveStdPath' in line:
-                #             saveStdPath= line.split(':')[-1].strip()
-                #             if saveStdPath=='':
-                #                 saveStdPath=rf"D:\ricemodify\datasetRF\{year}{inputtag}patchsize{patchsize}\std39_ 2022_medianq75max(10bands3index).npy"
-                #             std=np.load(saveStdPath)
                     
                 img,trans=load_tiles(img_dir,mean,std,startrow,startcol,endrow,endcol)
                 predictdir=rf'D:\ricemodify\runRFDL\predict\{area}\{year}{inputtag}patchsize{patchsize}\arraypng\{saveVersion}'
@@ -237,13 +214,8 @@ if __name__ == "__main__":
                 # logging.info('saveMeanPath: %s', saveMeanPath)
                 # logging.info('saveStdPath: %s', saveStdPath)
                 logging.info('saveMOdelPath:%s', modelpath)
-            # os.makedirs(predicttifpath,exist_ok=True)
-            # os.makedirs(predictjpgpath,exist_ok=True)
-            # savepredarraypath,savepredjpgpath,savetifpath=os.path.join(predictarray,saveVersion),os.path.join(predictjpg,saveVersion),os.path.join(predicttif,saveVersion)
+      
                 labelarray= predresult(batchsize,patchsize,startrow,startcol,endrow,endcol,predictdir)
-                # labelarray=np.load(os.path.join(predictdir,f'{saveVersion}_{startrow}-{endrow}x{startcol}-{endcol}.npy'))
-                # predresult(batchsize,patchsize,startrow,startcol,endrow,endcol,predictdir)
-                # predict(modelpath,img,batchsize,patchsize,startrow,startcol,endrow,endcol)
                 convertarraytolabeltif(orgintif,labelarray,patchsize,startrow,startcol,endrow,endcol,predicttifdir)
 
 
