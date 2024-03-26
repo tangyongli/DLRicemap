@@ -218,22 +218,7 @@ def trainsmid(train_dataset,epoch,threshold,weightssl,warmupepoch):
         total_loss += combine_loss
         # print(f'batchstep{batch_step},total_loss is:',total_loss)
         batch_step += 1
-        # print('batch_stepinside', batch_step)
-
-                
-    # print('batch_step', batch_step)
-    # superviseloss=np.concatenate(supervisedepochslosslist)
-    # superviseloss=np.mean(superviseloss)
-    # if epoch<=warmupepoch:
-    #     r=0
-    #     semiviseloss=0
-    # else:
-    #     semiviseloss=np.concatenate(semiviselosslist)
-    #     semiviseloss=np.mean(semiviseloss)
-    #     print(semiviseloss)
-    #     r=weightsslf(epoch, weightssl)
-    #     print(r)
-    # combineloss=superviseloss+r*semiviseloss
+      
     avg_loss=total_loss/batch_step
     accuracy = total_correct / total_samples
     ylist=np.concatenate(ylist)
@@ -241,9 +226,7 @@ def trainsmid(train_dataset,epoch,threshold,weightssl,warmupepoch):
     # print(ylist.shape,predictionlist.shape)
     p,u=confusion_matrix1(tf.argmax(ylist, axis=-1),predictionlist)
     # print('confusion_matrix',p,u)
-           
-    # 虽然最后一个batch的样本数量可能不一样，但是由于之前是在每个batch取损失均值，最后可以将batch损失均值的总和除以batch数量；因为每个样本的权重一样。
-    # 也可以不对batch的损失进行平均，直接计算每个batch中的总损失，然后直接将所有batch的总损失除以样本总数。
+      
     # print(f"Epoch {epoch+1}, Loss: {total_loss.numpy()/batch_step}")
     return model,avg_loss,accuracy 
 
